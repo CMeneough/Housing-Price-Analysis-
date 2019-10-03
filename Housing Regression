@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+
+#Import Data
+Data=pd.read_csv('Data.csv')
+Data['LnPrice']=np.log(Data['Price'])
+Data['Constant']=1
+Data['Metro Distance']=Data['Metro Distance']*69
+
+#Filter Data
+a=['2 Story','1 Story','Split Level 2-Levels',
+   'Split Foyer','1 1/2 Story','2 1/2 Story', 
+   'Split Level 3-Levels','Bi-Level','3 Story' ]
+Data=Data[Data["Style"].isin(a)]
+
+Data=Data[Data["Bedroom Count"] <= 8]
+Data=Data[Data["Full Bath Count"] <= 6]
+Data=Data[Data["Full Bath Count"] >= 1]
+Data=Data[Data["Garage (# of cars)"] <= 4]
+Data=Data[Data["Land Size (acres)"] <= 5]
+Data=Data[Data["Sales_Year"] >= 1980]
+
+#Create Dummy Variables
+Dummy=pd.get_dummies(Data['Style'],drop_first=True)
+Data=pd.concat([Data,Dummy],axis=1)
+
+Dummy=pd.get_dummies(Data['Construction Quality'],drop_first=True)
+Data=pd.concat([Data,Dummy],axis=1)
+
+Dummy=pd.get_dummies(Data['Physical Condition'],drop_first=True)
+Data=pd.concat([Data,Dummy],axis=1)
+
+Dummy=pd.get_dummies(Data['Sales_Year'],drop_first=True)
+Data=pd.concat([Data,Dummy],axis=1)
+
+
+#Separate Townhome and Single Family Home Data
+SgfamData=Data[Data["Sgfam"] == 1]
+TwnData=Data[Data["Twnhome"] == 1]
+
+#Regression Analysis
+SgfReg=sm.OLS(endog=SgfamData['Price'], exog=SgfamData[['Constant','Year Built',
+       'Bedroom Count', 'Full Bath Count', 'Half Bath Count',
+       'Basement Rec Room (sq. ft)', 'Garage (# of cars)',
+       'Basement Bed/Den Count', 
+       'Living Area (sq. ft)', 
+       'Land Size (acres)', 
+       'Metro Distance', '1 Story',
+       '2 1/2 Story', '2 Story', '3 Story', 'Bi-Level', 'Split Foyer',
+       'Split Level 2-Levels', 'Split Level 3-Levels', 'Average 10',
+       'Commercial Grade', 'Excellent', 'Excellent 10', 'Excellent 20',
+       'Excellent 30', 'Good', 'Good 10', 'Good 20', 'Luxury', 'Luxury 10',
+       'Luxury 20', 'Luxury 30', 'Mansion', 'Average Plus', 'Fair', 'Good',
+       'Poor',                       
+                                                             1981,
+                               1982,                         1983,
+                               1984,                         1985,
+                               1986,                         1987,
+                               1988,                         1989,
+                               1990,                         1991,
+                               1992,                         1993,
+                               1994,                         1995,
+                               1996,                         1997,
+                               1998,                         1999,
+                               2000,                         2001,
+                               2002,                         2003,
+                               2004,                         2005,
+                               2006,                         2007,
+                               2008,                         2009,
+                               2010,                         2011,
+                               2012,                         2013,
+                               2014,                         2015,
+                               2016,                         2017,
+                               2018
+      
+       ]], missing='drop')
+type(SgfReg)
+
+SgfResults = SgfReg.fit()
+type(SgfResults)
+
+print(SgfResults.summary())
+Coef=SgfResults.params
+
+
+TwnReg=sm.OLS(endog=TwnData['LnPrice'], exog=TwnData[['Constant','Year Built',
+       'Bedroom Count', 'Full Bath Count', 'Half Bath Count',
+       'Basement Rec Room (sq. ft)', 'Garage (# of cars)',
+       'Basement Bed/Den Count', 
+       'Living Area (sq. ft)', 
+       'Land Size (acres)', 
+       'Sales_Year', 'Metro Distance', '1 Story',
+       '2 1/2 Story', '2 Story', '3 Story', 'Bi-Level', 'Split Foyer',
+       'Split Level 2-Levels', 'Split Level 3-Levels', 'Average 10',
+       'Commercial Grade', 'Excellent', 'Excellent 10', 'Excellent 20',
+       'Excellent 30', 'Good', 'Good 10', 'Good 20', 'Luxury', 'Luxury 10',
+       'Luxury 20', 'Luxury 30', 'Mansion', 'Average Plus', 'Fair', 'Good',
+       'Poor']], missing='drop')
+type(TwnReg)
+
+TwnResults = TwnReg.fit()
+type(TwnResults)
+
+print(TwnResults.summary())
+
+Data.to_csv('StataData.csv')
