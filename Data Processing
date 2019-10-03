@@ -1,0 +1,131 @@
+import pandas as pd
+import numpy as np
+import scipy as spy
+from functools import reduce
+
+#Import Data
+Dwelling_Data=pd.read_csv('Dwelling_Data.csv')
+Parcel_Data=pd.read_csv('Parcel_Data.csv')
+Land_Data=pd.read_csv('Land_Data.csv')
+AssessedValues_Data=pd.read_csv('AssessedValues_Data.csv')
+Address_Data=pd.read_csv('Address_Data.csv')
+Sales_Data=pd.read_csv('Sales_Data.csv')
+Metro_Data=pd.read_stata('Metro_Data.dta')
+
+#Combine Data Files
+Housing_Data=[Dwelling_Data, Parcel_Data, Land_Data, AssessedValues_Data, Address_Data]
+
+#Create Loop
+for x in Housing_Data:
+	
+	#Rename Variables
+	x.rename(columns={'PARID':          'Parcel ID', 
+                              'STYLE_DESC':     'Style',
+                              'YRBLT':          'Year Built', 
+                              'EFFYR':          'Year Built from Remodel',
+                              'YRREMOD':        'Year House Remodeled', 
+                              'RMBED':          'Bedroom Count',
+                              'FIXBATH':        'Full Bath Count', 
+                              'FIXHALF':        'Half Bath Count',
+                              'RECROMAREA':     'Basement Rec Room (sq. ft)', 
+                              'WBFP_PF':        'Number of Fireplaces',
+                              'BSMTCAR':        'Garage (# of cars)',
+                              'USER6':          'Model Name',
+                              'USER10':         'Basement Bed/Den Count', 
+                              'GRADE_DESC':     'Construction Quality',
+                              'SFLA':           'Living Area (sq. ft)', 
+                              'BSMT_DESC':      'Basement Description',
+                              'CDU_DESC':       'Physical Condition',
+                              'EXTWALL_DESC':   'Exterior Wall Material', 
+                              'HEAT_DESC':      'Heating Description', 
+                              'USER13_DESC':    'Roof Type',
+                              'USER7_DESC':     'Dormer Type', 
+                              'USER9_DESC':     'Basement Type',
+                              'TAXYR':			'Tax Year',
+                              'LLINE':			'Line Number',
+                              'APRLAND':		'Appraised Land Value',
+                              'APRBLDG':		'Appraised Bulding Value',
+                              'APRTOT':			'Appraised Total Value',
+                              'YRBLT':			'Year Built',
+                              'UNITS':			'Number of Units',
+                              'USER1':			'Number of Stories',
+                              'USER8':			'Number of Elevators',
+                              'SF':				'Land Size (sq. ft)',
+                              'ACRES':			'Land Size (acres)',
+                              'PARCEL_PIN':		'Parcel ID',  
+                              'SALEDT':			'Sale Date',
+                              'PRICE':			'Price',
+                              },inplace=True)
+
+
+	#Drop Duplicates
+	x.drop_duplicates(['Parcel ID'],inplace=True)
+
+
+	#Sort Values
+	x.sort_values(by='Parcel ID',inplace=True)
+    
+    #Loop Ended
+
+#Sales Data
+Sales_Data.rename(columns={'PARID':             'Parcel ID', 
+                           'SALEDT':            'Sale Date',
+                           'PRICE':             'Price',
+                            },inplace=True)
+Sales_Data.sort_values(by='Parcel ID',inplace=True)
+
+#Combine All the Data
+All_Data=[Sales_Data, Dwelling_Data, Parcel_Data, Land_Data, AssessedValues_Data, Address_Data]   
+
+#Merge the Data Files
+All_Data=reduce(lambda x,y:pd.merge(x,y,on='Parcel ID'), All_Data)	
+
+#Delete Excess Data Files
+del Dwelling_Data
+del Parcel_Data
+del Land_Data
+del AssessedValues_Data
+del Address_Data
+del Sales_Data
+
+#Change Sales Date Format
+All_Data['Sales_Date']=All_Data['Sale Date']
+All_Data['Sales_Year']=All_Data.Sales_Date.str[0:4].astype('int')
+All_Data['Sales_Month']=All_Data.Sales_Date.str[5:7]
+All_Data['Sales_Day']=All_Data.Sales_Date.str[8:10]
+    
+#Filter the Data
+All_Data=All_Data[All_Data["Price"] >= 100000]
+All_Data=All_Data[All_Data["Price"] <= 50000000]
+All_Data=All_Data[All_Data["Sales_Year"] >= 1966]
+
+#Create Binary Variables for Single Family and Townhomes
+All_Data['Sgfam']=(All_Data['LUC_DESC']=='Single-family, Detached ')*1 
+All_Data['Twnhome']=(All_Data['LUC_DESC']=='Townhouse in ownership development')*1 
+
+#Create Spatial Array
+A=All_Data[['Y','X']]
+B=Metro_Data[['latitude','longitude']]
+
+
+#Find Distance
+Metro_Distance=spy.spatial.distance.cdist(A,B,'euclidean')
+Metro_Distance=Metro_Distance.min(axis=1)
+
+#Combine Distance with Rest of Data
+All_Data['Metro Distance']=Metro_Distance
+
+#Regression Data
+Data=All_Data[['Parcel ID', 'Price', 
+       'Style', 'Year Built',
+       'Bedroom Count',
+       'Full Bath Count', 'Half Bath Count', 'Basement Rec Room (sq. ft)',
+       'Garage (# of cars)', 
+       'Basement Bed/Den Count', 'Construction Quality',
+       'Living Area (sq. ft)', 
+       'Physical Condition', 'Exterior Wall Material', 'Heating Description',
+       'Roof Type', 'Land Size (acres)',
+       'ZIP', 'Sales_Year', 'Sgfam', 'Twnhome',
+       'Metro Distance']]
+     
+Data.to_csv('Data.csv')
